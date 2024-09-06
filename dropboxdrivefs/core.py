@@ -1,4 +1,6 @@
 import logging
+from typing import Optional
+
 import dropbox.files
 import requests
 from dropbox.exceptions import ApiError
@@ -31,9 +33,17 @@ class DropboxDriveFileSystem(AbstractFileSystem):
     ```
     """
 
-    def __init__(self, token=None, client=None, *args, **storage_options):
+    def __init__(
+        self,
+        token: Optional[str] = None,
+        client: Optional[str] = None,
+        app_key: Optional[str] = None,
+        refresh_token: Optional[str] = None,
+        *args,
+        **storage_options,
+    ):
         super().__init__(token=token, client=client, *args, **storage_options)
-        self.connect(token=token, client=client)
+        self.connect(token=token, client=client, app_key=app_key, refresh_token=refresh_token)
 
     def _call(self, _, method="get", path=None, data=None, redirect=True, offset=0, length=None, **kwargs):
         headers = {"Range": f"bytes={offset}-{offset+length+1}"}
@@ -48,13 +58,22 @@ class DropboxDriveFileSystem(AbstractFileSystem):
         out.raise_for_status()
         return out
 
-    def connect(self, token=None, client=None):
+    def connect(
+        self,
+        token: Optional[str] = None,
+        client: Optional[dropbox.Dropbox] = None,
+        *,
+        app_key: Optional[str],
+        refresh_token: Optional[str] = None,
+    ):
         if client is not None:
             self.dbx = client
         elif token is not None:
             self.dbx = dropbox.Dropbox(token)
+        elif app_key is not None and refresh_token is not None:
+            self.dbx = dropbox.Dropbox(oauth2_refresh_token=refresh_token, app_key=app_key)
         else:
-            raise ValueError("You must provide either a token or a dropbox client object.")
+            raise ValueError("You must provide either a token, an app key and refresh token pair, or a dropbox client object.")
 
         self.session = requests.Session()
         self.session.auth = ("Authorization", self.dbx._oauth2_access_token)
